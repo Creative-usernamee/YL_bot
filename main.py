@@ -1,13 +1,13 @@
 import discord
 from discord.ext import commands
-from discord_components import DiscordComponents, Button, Select, SelectOption
+from discord_components import DiscordComponents, Button
 from cfg import TOKEN
 import sys
 import youtube_dl
 import asyncio
 import requests
 import random
-import _sqlite3
+import sqlite3
 
 with open('cfg.txt') as f:
     cfg = eval(f.read())
@@ -18,33 +18,45 @@ DiscordComponents(client)
 
 @client.event
 async def on_ready():
-    members = []
-    for member in client.get_guild(963418450611539988).members:
+    con = sqlite3.connect('cfg.db')
+    cur = con.cursor()
+    members = cur.execute('SELECT member, points FROM scores').fetchall()
+    members_names = [i[0] for i in members]
+    for member in client.get_guild(481084805820448779).members:
         if not member.bot:
-            members.append(member.name)
+            if str(member.name) not in members_names:
+                cur.execute("INSERT INTO scores VALUES(?, 0)", (member.name))
+    con.commit()
     print('Работает')
 
 
 @client.command(name='help')
 async def help(ctx):
+    p = cfg['PREFIX']
     embed = discord.Embed(title='Help',
-                          description='\n```fix\nКоманды для управления ботом```'
-                                      '\n**prefix <новый префикс>** - ***меняет префикс***\n\n'
-                                      '**off** - ***выключает бота***\n\n'
-                                      '**ping** - ***возвращает задержку***\n\n'
-                                      '\n```fix\nКоманды для управления участниками```'
-                                      '\n**mute <@ник>** - ***замутит участника***\n\n'
-                                      '**unmute <@ник>** - ***размутит участника***\n\n'
-                                      '**kick <@ник> <причина>** - ***кикает участника с сервера по причине...***\n\n'
-                                      '**ban <@ник> <причина>** - ***банит участника по причине...\n\n***'
-                                      '```fix\nКоманды для управления музыкой```'
-                                      '**\nplay <ссылка на YouTube>** - ***проигрывает музыку с видео по ссылке***\n\n'
-                                      '**next** - ***включает следующую песню***\n\n'
-                                      '**stop** - ***останавливает, что играет сейчас***\n\n'
-                                      '**resume** - ***продолжает***\n\n'
-                                      '**list** - ***показывает очередь песен***\n\n'
-                                      '**clear** - ***очищает всю очередь и перестаёт играть***\n\n',
                           color=0xff9900)
+    embed.add_field(name='Управление ботом', value='_', inline=False)
+    embed.add_field(name=f'{p}prefix <префикс>', value='Сменить префикс', inline=False)
+    embed.add_field(name=f'{p}off', value='Выключает бота', inline=False)
+    embed.add_field(name=f'{p}ping', value='Возвращает задержку\n_', inline=False)
+
+    embed.add_field(name='Управление участниками', value='_', inline=False)
+    embed.add_field(name=f'{p}mute', value='Замутит участника', inline=False)
+    embed.add_field(name=f'{p}unmute', value='Размутит участника', inline=False)
+    embed.add_field(name=f'{p}kick <@ник> <причина>', value='Кикает участника с сервера по причине...', inline=False)
+    embed.add_field(name=f'{p}ban <@ник> <причина>', value='Банит участника по причине...\n_', inline=False)
+
+    embed.add_field(name='Управление музыкой', value='_', inline=False)
+    embed.add_field(name=f'{p}play <ссылка на YouTube>', value='Проигрывает музыку с видео по ссылке', inline=False)
+    embed.add_field(name=f'{p}stop', value='Останавливает, что играет сейчас', inline=False)
+    embed.add_field(name=f'{p}resume', value='Продолжает\n_', inline=False)
+
+    embed.add_field(name='Другие команды', value='_', inline=False)
+    embed.add_field(name=f'{p}map <шир, дол, зум от 1 до 15>', value='Возвращает карту заданных координат',
+                    inline=False)
+    embed.add_field(name=f'{p}rps', value='Сыграйте с ботом в игру', inline=False)
+    embed.add_field(name=f'{p}roulette', value='Попытайте совю удачу (не повезет - получите бан)', inline=False)
+
     await ctx.send(embed=embed)
 
 
@@ -85,7 +97,7 @@ async def off(ctx):
         await ctx.send(embed=emb)
 
 
-# ----------  Команды для юзера  ----------
+# ----------  Команды для юзеров  ----------
 @client.command(name='mute')
 async def mute(ctx, member: discord.Member):
     if ctx.author.id == 375939678991286282:
@@ -130,7 +142,7 @@ async def ping(ctx):
 
 @client.command(name='kick')
 @commands.has_permissions(kick_members=True)
-async def kick(ctx, member: discord.Member=None, *, reason='не указана'):
+async def kick(ctx, member: discord.Member = None, *, reason='не указана'):
     if ctx.author.id == 375939678991286282:
         await ctx.guild.kick(member)
         emb = discord.Embed(title="Прощай!",
@@ -148,7 +160,7 @@ async def kick(ctx, member: discord.Member=None, *, reason='не указана'
 
 @client.command(name='ban')
 @commands.has_permissions(ban_members=True)
-async def ban(ctx, member: discord.Member=None, reason='не указана'):
+async def ban(ctx, member: discord.Member = None, reason='не указана'):
     if ctx.author.id == 375939678991286282:
         await member.ban(reason=reason)
         emb = discord.Embed(title="Чтож, возможно, мы больше не встретимся!",
@@ -292,7 +304,7 @@ async def map(ctx, lon, lat, z):
     if not response:
         emb = discord.Embed(title='Ошибка выполнения запроса:',
                             description=f'{response}\n'
-                            f'Http статус: {response.status_code} ({response.reason})',
+                                        f'Http статус: {response.status_code} ({response.reason})',
                             colour=discord.Color.red())
         await ctx.send(embed=emb)
     else:
@@ -304,126 +316,136 @@ async def map(ctx, lon, lat, z):
             await ctx.send(file=picture)
 
 
+@client.event
+async def on_button_click(interaction):
+    if interaction.component.label.startswith("Камень") or \
+            interaction.component.label.startswith("Ножницы") or \
+            interaction.component.label.startswith("Бумага"):
+        choice = random.choice(['Камень', 'Ножницы', 'Бумага'])
+        if interaction.component.label.startswith("Камень"):
+            user = 'Камень'
+        elif interaction.component.label.startswith("Ножницы"):
+            user = 'Ножницы'
+        else:
+            user = 'Бумага'
+        res = 0
+        if user:
+            if choice == user:
+                res = 0
+            elif choice == 'Камень' and user == 'Бумага' or \
+                    choice == 'Ножницы' and user == 'Камень' or \
+                    choice == 'Бумага' and user == 'Ножницы':
+                res = 1
+            else:
+                res = 2
+        if res == 0:
+            emb = discord.Embed(title='Ничья!',
+                                description=f'Вы выбрали {user}\n'
+                                            f'Бот выбрал {choice}',
+                                colour=discord.Color.dark_grey())
+            await interaction.send(embed=emb)
+        elif res == 1:
+            emb = discord.Embed(title='Вы победили!',
+                                description=f'Вы выбрали {user}\n'
+                                            f'Бот выбрал {choice}',
+                                colour=discord.Color.dark_green())
+            await interaction.send(embed=emb)
+        else:
+            emb = discord.Embed(title='Бот победил!',
+                                description=f'Вы выбрали {user}\n'
+                                            f'Бот выбрал {choice}',
+                                colour=discord.Color.dark_red())
+            await interaction.send(embed=emb)
+    elif interaction.component.label.startswith("Очки"):
+        con = sqlite3.connect('cfg.db')
+        cur = con.cursor()
+        cur_points = cur.execute(f'SELECT points FROM scores WHERE member = ?',
+                                 (interaction.author.name,)).fetchone()[0]
+        emb = discord.Embed(title=f'Ваше кол-во очков: {cur_points}',
+                            color=discord.Color.dark_gold())
+        await interaction.send(embed=emb)
+    else:
+        bullets = int(interaction.component.label)
+        label = [1] * bullets
+        while len(label) != 6:
+            label.append(0)
+        row = ''
+        for place in label:
+            if place == 1:
+                row += ':red_circle:'
+            else:
+                row += ':white_circle:'
+        if bullets == 1:
+            end = 'ю'
+        elif 2 <= bullets <= 4:
+            end = 'и'
+        else:
+            end = 'ь'
+        emb = discord.Embed(color=discord.Color.dark_grey())
+        emb.add_field(name='Ну, поехали!',
+                      value=f'Итак, заряжаем {bullets} {"пул" + end} \n\n'
+                            f'{row}',
+                      inline=False)
+
+        choice = random.choice(label)
+
+        if choice == 1:
+            emb.add_field(name='\nВы уверенно спустили урок и... раздался громкий выстрел',
+                          value='...',
+                          inline=False)
+            con = sqlite3.connect('cfg.db')
+            cur = con.cursor()
+            cur.execute(f'UPDATE scores SET points = ? WHERE member = ?',
+                        (0, interaction.author.name,)).fetchall()
+            con.commit()
+            await interaction.send(embed=emb)
+            await interaction.author.ban(reason="Повезет в следующий р... А, нет, вы же мертвы...",
+                                         delete_message_days=0)
+
+        else:
+            points = 10 * bullets
+            emb.add_field(name='\nВы уверенно спустили урок и... разадался тихий щелчок',
+                          value=f'Сегодня удача улыбнулась вам... Очков получено: {points}',
+                          inline=False)
+            await interaction.send(embed=emb)
+            con = sqlite3.connect('cfg.db')
+            cur = con.cursor()
+            cur_points = cur.execute(f'SELECT points FROM scores WHERE member = ?',
+                                     (interaction.author.name,)).fetchone()[0]
+            cur_points += points
+            cur.execute(f'UPDATE scores SET points = ? WHERE member = ?',
+                        (cur_points, interaction.author.name,)).fetchall()
+            con.commit()
+
+
 @client.command(name='rps')
 async def rps(ctx):
-    for emoji in ctx.guild.emojis:
-        print(emoji, emoji.id)
     emb = discord.Embed(title='Выберите свой вариант',
                         colour=discord.Color.blurple())
     await ctx.send(embed=emb)
     await ctx.send(components=[
-        [Button(label=f'Камень 👊', custom_id = "button1"),
-         Button(label='Ножницы ✋', custom_id = "button2"),
-         Button(label='Бумага ✌️', custom_id = "button3")]
-        ]
+        [Button(label='Камень 👊', custom_id="button1"),
+         Button(label='Ножницы ✌️', custom_id="button2"),
+         Button(label='Бумага ✋', custom_id="button3")]
+    ]
     )
-    choice = random.choice([1, 2, 3])
-    interaction1 = await client.wait_for("button_click", check=lambda i: i.custom_id == "button1")
-    interaction2 = await client.wait_for("button_click", check=lambda i: i.custom_id == "button2")
-    interaction3 = await client.wait_for("button_click", check=lambda i: i.custom_id == "button3")
-    user = 0
-    if interaction1:
-        user = 1
-    elif interaction2:
-        user = 2
-    elif interaction3:
-        user = 3
-    res = 0
-    if user:
-        if choice == user:
-            res = 0
-        elif choice == 1 and user == 3 or\
-            choice == 2 and user == 1 or\
-            choice == 3 and user == 2:
-            res = 1
-        else:
-            res = 2
-    if res == 0:
-        await interaction1.send('hello')
-        emb = discord.Embed(title='Ничья!',
-                        colour=discord.Color.dark_grey())
-        await ctx.send(embed=emb)
-    if res == 1:
-        emb = discord.Embed(title='Вы победили!',
-                        colour=discord.Color.dark_green())
-        await ctx.send(embed=emb)
-    else:
-        emb = discord.Embed(title='Бот победил!',
-                        colour=discord.Color.dark_red())
-        await ctx.send(embed=emb)
 
 
 @client.command(name='roulette')
-async def roulette(ctx, bullets):
-    try:
-        bullets = int(bullets)
-        if bullets < 0:
-            emb = discord.Embed(title='А как?',
-                                colour=discord.Color.greyple())
-            await ctx.send(embed=emb)
-        elif bullets == 0:
-            emb = discord.Embed(title='Нет, ну так уж совсем не честно',
-                                colour=discord.Color.greyple())
-            await ctx.send(embed=emb)
-        elif 0 < bullets < 6:
-            li = ['kill']
-            li += [0] * bullets
-            choice = random.choice(li)
-            if choice == 'kill':
-                emb = discord.Embed(title=f'{ctx.author.name} смело спустил курок и...',
-                                    description='отправился на тот свет...',
-                                    colour=discord.Color.dark_red())
-                await ctx.send(embed=emb)
-                await ctx.author.ban(reason='Удача отвернулась от вас...')
-            else:
-                emb = discord.Embed(title=f'{ctx.author.name} смело спустил курок и...',
-                                    description='ничего не прозошло...',
-                                    colour=discord.Color.dark_green())
-                await ctx.send(embed=emb)
-        elif bullets >= 6:
-            emb = discord.Embed(title='Многовато получается',
-                                colour=discord.Color.greyple())
-            await ctx.send(embed=emb)
-    except Exception:
-        emb = discord.Embed(title='А как?',
-                            colour=discord.Color.greyple())
-        await ctx.send(embed=emb)
-
-
-
-@client.command()
-async def button(ctx):
-    await ctx.send(
-        "...",
-        components = [
-            Button(label = "название кнопочки", custom_id = "button1")
-        ]
+async def roulette(ctx):
+    emb = discord.Embed(title='Сколько пуль зарядить?',
+                        description='Кол-во полученных очков будет равно <кол-во пуль> * 10',
+                        colour=discord.Color.blurple())
+    await ctx.send(embed=emb)
+    await ctx.send(components=[
+        [Button(label='1', custom_id="button1", style=1),
+         Button(label='2', custom_id="button2", style=1),
+         Button(label='3', custom_id="button3", style=1),
+         Button(label='4', custom_id="button4", style=1),
+         Button(label='5', custom_id="button5", style=1),
+         ], Button(label='Очки', custom_id="button6", style=3)
+    ]
     )
-
-    interaction = await client.wait_for("button_click", check = lambda i: i.custom_id == "button1")
-    await interaction.send(content="ага",
-                           components=[
-                               Button(label="кнопочка", custom_id="button1")
-        ])
-
-
-@client.command()
-async def select(ctx):
-    await ctx.send(
-        "текст",
-        components=[
-            Select(
-                placeholder="выбрать",
-                options=[
-                    SelectOption(label="A", value="A"),
-                    SelectOption(label="B", value="B")
-                ]
-            )
-        ]
-    )
-
-    interaction = await client.wait_for("select_option")
-    await interaction.send(content = f"{interaction.values[0]}")
 
 
 client.run(TOKEN)
